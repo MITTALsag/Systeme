@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS=-g 
 CPPFLAGS=-Wall -Werror
 
-PROGS=simple_prog.run testz.run affiche_PID_PPID.run arbre_fork.run
+PROGS=simple_prog.run testz.run affiche_PID_PPID.run arbre_fork.run exec_cmd.run
 
 INCLUDE = utils.h
 OBJS = utils.o
