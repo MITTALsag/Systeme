@@ -1,6 +1,6 @@
 
 CC=gcc
-CFLAGS=-g 
+CFLAGS=-g
 CPPFLAGS=-Wall -Werror
 
 PROGS=shell
@@ -8,7 +8,7 @@ PROGS=shell
 .PHONY: all
 all: $(PROGS)
 
-shell: shell.o shell-utils.o
+shell: shell.o shell-utils.o shell-utils-perso.o exec_shell.o
 
 %.o: %.c
 	$(CC) -MMD -MF .$*.d $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
