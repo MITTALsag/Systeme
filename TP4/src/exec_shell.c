@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 #include "shell-utils.h"
-#include "shell-utils-perso.h"
+#include "shell-functionalities.h"
 
 #define INPUT_BUFFER_SIZE 2048
 #define MAX_TOKEN_NB 512
@@ -67,16 +67,28 @@ int shell() {
             exit(1);
         }
 
-        /* S'il n'y a pas de token, c'est que l'utilisateur n'a pas donné de
-         * commande. Il n'y a rien à faire. On arrête tout. */
+        /* si nb_tokens est négatif, c'est qu'il y a eu une erreur
+         * dans split_tokens. On quitte. */
         if (nb_tokens<0) {
             fprintf(stderr, "No tokens found: exiting\n");
             exit(1);
         }
-        else if (nb_tokens == 0) //si on appuis directement sur entree on continue sans rien executé
+        /* S'il n'y a pas de token, c'est que l'utilisateur n'a pas donné de
+         * commande. Il n'y a rien à faire. On passe a la ligne d'après */
+        else if (nb_tokens == 0)
             continue;
+        /* si l'utilistateur a tapé exit on quitte. */
+        else if(strcmp(tokens[0], "exit") == 0) //si on tape exit on quitte le shell
+        {
+            printf("Bye bye\n");
+            exit(0);
+        }
+        /* sinon on éxecute la commande. */
         else
-            exec_cmd_fils(tokens[0], tokens);
+            exec_cmd(tokens[0], tokens);
     }
-    return 0;
+
+    /* On ne devrait jamais arriver là */
+    fprintf(stderr, "Internal error: exiting\n");
+    exit(1);
 }
