@@ -27,6 +27,9 @@ int shell() {
     /* variables entières pour compter le nombre de token */
     int nb_tokens;
 
+    /* appelle du handler pour le signal SIGCHILD */
+    signal(SIGCHLD, sigchild_handler);
+
     while(1)
     {
 

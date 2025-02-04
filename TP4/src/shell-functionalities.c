@@ -27,6 +27,10 @@ pid_t Fork(void)
     return pid;
 }
 
+/*
+* Fonction interne qui renvoie vrais si le dernier token de options est "&"
+* Cette fonction met NULL a la place de "&" si il existe pour eviter de le passer en argument
+*/
 bool test_arriere_plan(char** options, int taille_options)
 {
     /* on regarde si le dernier token de options est & */
@@ -39,20 +43,33 @@ bool test_arriere_plan(char** options, int taille_options)
     return false;
 }
 
+/* 
+* Variable global qui est mise a true quand on veux utiliser le sigchild_handler
+* Par défaut a true car on ne sais pas quand va finir un process en arrière plan
+* On mettera a false pour un foreground command et on remettra true juste apres la fin de cette commande
+*/
+bool sigchild_handler_using = true;
 
-void handler(int sig) 
-{ 
-    int statut;
-    while(waitpid(-1, &statut, WNOHANG) > 0);
-    return;
+/*
+* Fonction qui re map de handler pour le signal SIGCHILD
+*/
+void sigchild_handler(int sig) 
+{
+    if (sigchild_handler_using)
+    {
+        int statut;
+        /* 
+        * Le while sert a chercher si il n'y en a pas d'autre 
+        * Car un signal d'un meme type n'est sauvegardé qu'une fois
+        * donc si il y a plusieur process fils en background qui se termine en meme temps
+        * Il faut quand meme tous les wait.
+        */
+        while(waitpid(-1, &statut, WNOHANG) > 0);
+    }
 }
 
-void handler2(int sig) 
-{ 
-    (void)sig;
-}
-
-/* Fonction interne qui gère les redirection d'entree ( "<" ) 
+/* 
+* Fonction interne qui gère les redirection d'entree ( "<" ) 
 * Cette fonction est appelée par exec_cmd_dans_fils
 * Elle est appeler dans la partie du fils du fork
 * Donc on peut chager ici les descripteurs de fichiers sans affecter le père
@@ -197,13 +214,10 @@ int gestion_code_retour_fils(pid_t fils, char* cmd)
 /* 
 * Fonction interne qui exécute une commande simple (sans tube)
 * appeler par exec_cmd
+* fais la gestion des redirections et la gestion de commande a executer en background ou foreground
 */
-int exec_cmd_simple(char* cmd, char** options, int nb_tokens)
+int exec_cmd_simple(char* cmd, char** options, int nb_tokens, bool background)
 {   
-    /* On regarde si il faut faire la commande en arriere plan */
-    /* on le fais directement pour supprimer le & si il y en a un */
-    bool arriere_plan = test_arriere_plan(options, nb_tokens);
-
     pid_t fils = Fork();
     if (fils == 0)
     {   
@@ -219,17 +233,23 @@ int exec_cmd_simple(char* cmd, char** options, int nb_tokens)
     /* code du pere */
 
     /* Si on execute en arriere plan : on attend pas le fils et on retourne 0 */
-    if (arriere_plan)
-    {
-        signal(SIGCHLD, handler);
+    if (background)
+    {   
         printf("[Processus en arrière-plan] PID: %d\n", fils);
+
         return 0;
     }
     /* sinon on attend le fils et on fais la gestion d'erreur */
     else
     {
-        signal(SIGCHLD, handler2);
-        return gestion_code_retour_fils(fils, cmd);
+        /* mise de la variable global a false : le waitpid de gestion_code_retour_fils car le shell doit attendre la fin du process */
+        sigchild_handler_using = false;
+        int res = gestion_code_retour_fils(fils, cmd);
+
+        /* Ne pas oublier de remettre a true pour au cas ou l'attend d'un background process */
+        sigchild_handler_using = true;
+
+        return res;
     }
     
 
@@ -239,7 +259,7 @@ int exec_cmd_simple(char* cmd, char** options, int nb_tokens)
 * Fonction interne qui gère les tubes ( "|" ) 
 * Cette fonction est appelée par exec_cmd
 */
-int exec_cmd_pipe(char*** atomic_cmd, int nb_atomic_cmd)
+int exec_cmd_pipe(char*** atomic_cmd, int nb_atomic_cmd, bool background)
 {
     /* 
     * On va faire nb_atomic_cmd fork (un fork par commande)
@@ -365,14 +385,40 @@ int exec_cmd_pipe(char*** atomic_cmd, int nb_atomic_cmd)
         close(tube[i][1]);
     }
 
-    /* On attend la fin de chaque fils */
-    for (i = 0 ; i < nb_atomic_cmd ; i++)
+    /* 
+    * Si on execute la commande en background 
+    * on affiche les process fils cree en arriere plan (mode debug)
+    * et on retourne simplement 0
+    */
+    if (background)
     {
-        gestion_code_retour_fils(fils[i], atomic_cmd[i][0]);
+        /* Mode debug */
+        // for (int i = 0; i < nb_atomic_cmd; i++) {
+        //     printf("[Processus en arrière-plan] PID: %d\n", fils[i]);
+        // }
+        return 0;
+    }
+    /*
+    * Sinon on met bien a jour (avant et apres sigchild_handler_using)
+    * puis on attend chaque fils avec gestion_code_retour_fils
+    */
+    else
+    {
+        /* mise de la variable global a false : le waitpid de gestion_code_retour_fils car le shell doit attendre la fin du process */
+        sigchild_handler_using = false;
+        for (int i = 0; i < nb_atomic_cmd; i++)
+        {
+            gestion_code_retour_fils(fils[i], atomic_cmd[i][0]);
+        }
+        /* Ne pas oublier de remettre a true pour au cas ou l'attend d'un background process */
+        sigchild_handler_using = true;
+
+        return 0;
     }
 
-    /* tous est ok */
-    return 0;
+    /* On ne devrait jamais arriver là (car la fonction exec_cmd_dans_fils fais un exit) */
+    fprintf(stderr, "On ne dervait jamais arriver ici\n");
+    exit(EXIT_FAILURE);
 }
 
 
@@ -388,6 +434,11 @@ int exec_cmd(char** tokens, int nb_tokens)
         fprintf(stderr, "Erreur dans les arguments");
         exit(EXIT_FAILURE);
     }
+
+    /* On regarde si il faut faire la commande en arriere plan */
+    /* on le fais directement pour supprimer le & si il y en a un */
+    bool background = test_arriere_plan(tokens, nb_tokens);
+
 
     /* 
     * Tableau pour stocker les commandes séparées par les tubes
@@ -423,15 +474,16 @@ int exec_cmd(char** tokens, int nb_tokens)
     if (nb_atomic_cmd == 1)
     {   
         free(atomic_cmd);
-        return exec_cmd_simple(tokens[0], tokens, nb_tokens);
+        return exec_cmd_simple(tokens[0], tokens, nb_tokens, background);
     }
 
     /* 
     * sinon il y a au moins un tube 
     * Et il faut appeler exec_cmd_pipe
     */
-    int res =  exec_cmd_pipe(atomic_cmd, nb_atomic_cmd);
+    int res =  exec_cmd_pipe(atomic_cmd, nb_atomic_cmd, background);
 
+    /* Sans oublier de liberer la mémoire */
     free(atomic_cmd);
     
     return res;

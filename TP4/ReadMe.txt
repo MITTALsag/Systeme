@@ -31,6 +31,21 @@ La liste des fonctionnalit´es que vous avez mises en oeuvre :
 *******************************************************************************************************
 
     - Ajout de la gestion de | : exec_cmd car le shell doit faire plus de fork.
+      * on parse donc les tokens en sous tokens de commande atomic (sans pipe) puis on appelle exec_cmd_pipe qui fais l'algo du cours 
+      * bien verifier que les fils ferme les pipe non adjacent
+    
+    
+    - Fin 4.3
+
+    - ajout de sigchild_handler pour la gestion de SIGCHILD et de la variable global sigchild_handler_using.
+    - ajout de test_arriere_plan
+
+    - modif dans exec_cmd ---> test_arriere_plan pour bool background
+    - modif dnas exec_cmd_simple et exec_cmd_pipe ---> if(background)... dans le code du pere 
+
+    - ajout de signal(SIGCHILD, sigchild_handler) dans le exec_shell.c
+
+    - Fin 4.4
 
         
 
