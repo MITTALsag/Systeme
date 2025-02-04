@@ -3,7 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #include "shell-utils.h"
 #include "shell-functionalities.h"
@@ -25,8 +27,33 @@ pid_t Fork(void)
     return pid;
 }
 
+bool test_arriere_plan(char** options, int taille_options)
+{
+    /* on regarde si le dernier token de options est & */
+    if(options != NULL && strcmp(options[taille_options-1], "&") == 0)
+    {
+        /* // Retire le & pour éviter de passer comme argument */
+        options[taille_options-1] = NULL;
+        return true;
+    }
+    return false;
+}
+
+
+void handler(int sig) 
+{ 
+    int statut;
+    while(waitpid(-1, &statut, WNOHANG) > 0);
+    return;
+}
+
+void handler2(int sig) 
+{ 
+    (void)sig;
+}
+
 /* Fonction interne qui gère les redirection d'entree ( "<" ) 
-* Cette fonction est appelée par exec_cmd_simple
+* Cette fonction est appelée par exec_cmd_dans_fils
 * Elle est appeler dans la partie du fils du fork
 * Donc on peut chager ici les descripteurs de fichiers sans affecter le père
 */
@@ -61,7 +88,7 @@ void gestion_redirection_entree(char** options)
 }
 
 /* Fonction interne qui gère les redirection de sortie ( ">" ) 
-* Cette fonction est appelée par exec_cmd_simple
+* Cette fonction est appelée par exec_cmd_dans_fils
 * Elle est appeler dans la partie du fils du fork
 * Donc on peut chager ici les descripteurs de fichiers sans affecter le père
 */
@@ -138,7 +165,11 @@ int gestion_code_retour_fils(pid_t fils, char* cmd)
     int code_retour;
 
     /* attente du fils */
-    waitpid(fils, &status, 0);
+    if (waitpid(fils, &status, 0) == -1) 
+    {
+        perror("waitpid");
+        exit(EXIT_FAILURE);
+    }
 
     /* On vérifie que le fils s'est terminé normalement */
     if (WIFEXITED(status))
@@ -167,8 +198,12 @@ int gestion_code_retour_fils(pid_t fils, char* cmd)
 * Fonction interne qui exécute une commande simple (sans tube)
 * appeler par exec_cmd
 */
-int exec_cmd_simple(char* cmd, char** options)
-{
+int exec_cmd_simple(char* cmd, char** options, int nb_tokens)
+{   
+    /* On regarde si il faut faire la commande en arriere plan */
+    /* on le fais directement pour supprimer le & si il y en a un */
+    bool arriere_plan = test_arriere_plan(options, nb_tokens);
+
     pid_t fils = Fork();
     if (fils == 0)
     {   
@@ -180,10 +215,23 @@ int exec_cmd_simple(char* cmd, char** options)
         fprintf(stderr, "On ne dervait jamais arriver ici\n");
         exit(EXIT_FAILURE);
     }
+
+    /* code du pere */
+
+    /* Si on execute en arriere plan : on attend pas le fils et on retourne 0 */
+    if (arriere_plan)
+    {
+        signal(SIGCHLD, handler);
+        printf("[Processus en arrière-plan] PID: %d\n", fils);
+        return 0;
+    }
+    /* sinon on attend le fils et on fais la gestion d'erreur */
+    else
+    {
+        signal(SIGCHLD, handler2);
+        return gestion_code_retour_fils(fils, cmd);
+    }
     
-    /* code du père */
-    /* ici on va attendre le fils et faire de la gestion d'erreur */
-    return gestion_code_retour_fils(fils, cmd);
 
 }
 
@@ -328,6 +376,9 @@ int exec_cmd_pipe(char*** atomic_cmd, int nb_atomic_cmd)
 }
 
 
+/*
+* Fonction appeler par le shell 
+*/
 int exec_cmd(char** tokens, int nb_tokens)
 {
 
@@ -372,7 +423,7 @@ int exec_cmd(char** tokens, int nb_tokens)
     if (nb_atomic_cmd == 1)
     {   
         free(atomic_cmd);
-        return exec_cmd_simple(tokens[0], tokens);
+        return exec_cmd_simple(tokens[0], tokens, nb_tokens);
     }
 
     /* 
