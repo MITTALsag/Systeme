@@ -85,7 +85,7 @@ int shell() {
         }
         /* sinon on éxecute la commande. */
         else
-            exec_cmd(tokens[0], tokens);
+            exec_cmd(tokens, nb_tokens);
     }
 
     /* On ne devrait jamais arriver là */

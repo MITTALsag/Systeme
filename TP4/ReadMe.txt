@@ -26,7 +26,9 @@ La liste des fonctionnalit´es que vous avez mises en oeuvre :
       * problème quand on fais ls > a.txt : ca marche mais si on fais ensuite echo "salut" > a : ca ne supprime pas ce qu'il y avais avant.
       Donc on rajoute O_TRUNC pour supprimmer le contenu d'avant dans la redirecetion de sortie ">"
 
-    - modif test_basics.sh
+*******************************************************************************************************
+    - modif test_basics.sh A faire !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+*******************************************************************************************************
 
     - Ajout de la gestion de | : exec_cmd car le shell doit faire plus de fork.
 

@@ -1,4 +1,3 @@
-#!/bin/bash
 
 # Fonction pour exécuter une commande avec débogage sans afficher set -x/set +x
 # Fonction pour exécuter une commande avec débogage
@@ -6,6 +5,7 @@ debug_cmd() {
     echo "+ $*"
     ./shell 
     echo $@
+    exit
 }
 
 # Test de base : Commandes existantes

@@ -5,11 +5,9 @@
 
 
 /*
-** Exécute la commande "cmd" avec les option "options"
-** Renvoie 0 si tous c'est bien passé
-** Et exit(EXIT_FAILURE) sinon
+
 */
-int exec_cmd(char* cmd, char** options);
+int exec_cmd(char** tokens, int nb_tokens);
 
 
 #endif
