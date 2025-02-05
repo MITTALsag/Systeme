@@ -81,7 +81,8 @@ void gestion_redirection_entree(char** options)
     
 }
 
-/* Fonction interne qui gère les redirection de sortie ( ">" ) 
+/* 
+* Fonction interne qui gère les redirection de sortie ( ">" ) 
 * Cette fonction est appelée par exec_cmd_dans_fils
 * Elle est appeler dans la partie du fils du fork
 * Donc on peut chager ici les descripteurs de fichiers sans affecter le père
@@ -193,7 +194,7 @@ int gestion_code_retour_fils(pid_t fils, char* cmd)
 * appeler par exec_cmd
 * fais la gestion des redirections et la gestion de commande a executer en background ou foreground
 */
-int exec_cmd_simple(char* cmd, char** options, int nb_tokens, bool background)
+int exec_cmd_simple(char* cmd, char** options, bool background)
 {   
     pid_t fils = Fork();
     if (fils == 0)
@@ -214,7 +215,8 @@ int exec_cmd_simple(char* cmd, char** options, int nb_tokens, bool background)
     {   
         /* mise de la variable global a true : on execute le sigchild_handler pour eviter les zombie */
         sigchild_handler_use = true;
-        printf("[Processus en arrière-plan] PID: %d\n", fils);
+        /* mode debug */
+        //printf("[Processus en arrière-plan] PID: %d\n", fils);
 
         return 0;
     }
@@ -465,7 +467,7 @@ int exec_cmd(char** tokens, int nb_tokens)
     if (nb_atomic_cmd == 1)
     {   
         free(atomic_cmd);
-        return exec_cmd_simple(tokens[0], tokens, nb_tokens, background);
+        return exec_cmd_simple(tokens[0], tokens, background);
     }
 
     /* 
