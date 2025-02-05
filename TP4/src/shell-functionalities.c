@@ -9,6 +9,7 @@
 
 #include "shell-utils.h"
 #include "shell-functionalities.h"
+#include "signal-handlers.h"
 
 
 /*
@@ -43,30 +44,6 @@ bool test_arriere_plan(char** options, int taille_options)
     return false;
 }
 
-/* 
-* Variable global qui est mise a true quand on veux utiliser le sigchild_handler
-* Par défaut a true car on ne sais pas quand va finir un process en arrière plan
-* On mettera a false pour un foreground command et on remettra true juste apres la fin de cette commande
-*/
-bool sigchild_handler_using = true;
-
-/*
-* Fonction qui re map de handler pour le signal SIGCHILD
-*/
-void sigchild_handler(int sig) 
-{
-    if (sigchild_handler_using)
-    {
-        int statut;
-        /* 
-        * Le while sert a chercher si il n'y en a pas d'autre 
-        * Car un signal d'un meme type n'est sauvegardé qu'une fois
-        * donc si il y a plusieur process fils en background qui se termine en meme temps
-        * Il faut quand meme tous les wait.
-        */
-        while(waitpid(-1, &statut, WNOHANG) > 0);
-    }
-}
 
 /* 
 * Fonction interne qui gère les redirection d'entree ( "<" ) 
@@ -235,6 +212,8 @@ int exec_cmd_simple(char* cmd, char** options, int nb_tokens, bool background)
     /* Si on execute en arriere plan : on attend pas le fils et on retourne 0 */
     if (background)
     {   
+        /* mise de la variable global a true : on execute le sigchild_handler pour eviter les zombie */
+        sigchild_handler_use = true;
         printf("[Processus en arrière-plan] PID: %d\n", fils);
 
         return 0;
@@ -243,12 +222,20 @@ int exec_cmd_simple(char* cmd, char** options, int nb_tokens, bool background)
     else
     {
         /* mise de la variable global a false : le waitpid de gestion_code_retour_fils car le shell doit attendre la fin du process */
-        sigchild_handler_using = false;
+        sigchild_handler_use = false;
         int res = gestion_code_retour_fils(fils, cmd);
 
         /* Ne pas oublier de remettre a true pour au cas ou l'attend d'un background process */
-        sigchild_handler_using = true;
+        sigchild_handler_use = true;
 
+        /* On appelle le handler manuellement au cas ou une (ou plusieurs) commande en background a terminer avant une commande en foreground */
+        /* exemple : > sleep 4 &
+                     > sleep 7 
+        Ici sleep 4 va terminer avant mais comme on a fais sleep 7 avant que ca se termine on a sigchild_handler_use = false donc on va attendre sleep 7 
+        Mais comme les SIGCHID ne sont pas memoriser le SIGCHID de sleep 4 va etre perdu et on aura un zombie 
+        (va agir comme un "ramasse miette")
+        */
+        sigchild_handler(SIGCHLD);
         return res;
     }
     
@@ -399,19 +386,23 @@ int exec_cmd_pipe(char*** atomic_cmd, int nb_atomic_cmd, bool background)
         return 0;
     }
     /*
-    * Sinon on met bien a jour (avant et apres sigchild_handler_using)
+    * Sinon on met bien a jour (avant et apres sigchild_handler_use)
     * puis on attend chaque fils avec gestion_code_retour_fils
     */
     else
     {
         /* mise de la variable global a false : le waitpid de gestion_code_retour_fils car le shell doit attendre la fin du process */
-        sigchild_handler_using = false;
+        sigchild_handler_use = false;
         for (int i = 0; i < nb_atomic_cmd; i++)
         {
             gestion_code_retour_fils(fils[i], atomic_cmd[i][0]);
         }
         /* Ne pas oublier de remettre a true pour au cas ou l'attend d'un background process */
-        sigchild_handler_using = true;
+        sigchild_handler_use = true;
+
+        /* On appelle le handler manuellement au cas ou une (ou plusieurs) commande en background a terminer avant une commande en foreground */
+        /* (va agir comme un "ramasse miette") */
+        sigchild_handler(SIGCHLD);
 
         return 0;
     }

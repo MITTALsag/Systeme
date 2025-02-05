@@ -11,7 +11,7 @@ La liste des fonctionnalit´es que vous avez mises en oeuvre :
 
     - modif de l'organisation : 
         * shell.c --> exec_shell.c (le main deviens la
-      fonction shell
+      fonction shell)
         * le main est dans shell.c
 
     - modif exec_shell.c (code fornit) : 
@@ -37,28 +37,32 @@ La liste des fonctionnalit´es que vous avez mises en oeuvre :
     
     - Fin 4.3
 
-    - ajout de sigchild_handler pour la gestion de SIGCHILD et de la variable global sigchild_handler_using.
+    - ajout de sigchild_handler pour la gestion de SIGCHILD et de la variable global sigchild_handler_use.
     - ajout de test_arriere_plan
 
     - modif dans exec_cmd ---> test_arriere_plan pour bool background
     - modif dnas exec_cmd_simple et exec_cmd_pipe ---> if(background)... dans le code du pere 
 
     - ajout de signal(SIGCHILD, sigchild_handler) dans le exec_shell.c
+        /* On appelle le handler manuellement au cas ou une (ou plusieurs) commande en background a terminer avant une commande en foreground */
+        /* exemple : > sleep 4 &
+                     > sleep 7 
+        Ici sleep 4 va terminer avant mais comme on a fais sleep 7 avant que ca se termine on a sigchild_handler_use = false donc on va attendre sleep 7 
+        Mais comme les SIGCHID ne sont pas memoriser le SIGCHID de sleep 4 va etre perdu et on aura un zombie 
+        (va agir comme un "ramasse miette")
+        */
+        sigchild_handler(SIGCHLD);
 
     - Fin 4.4
 
         
 
-
-
-
-
-
-
-
-
-
-
-
-
 — La liste des bugs connus
+- si une command n'existe pas ca fais 
+"shell> j
+j: No such file or directory"
+
+au lieu de "j: Command not found: j"
+
+- qaund on fais par exemple la commande ls & ca va afficher le prompt avant puis la sortie standar de la commande ls puis un blanc mais ce blanc attend une commande 
+(on pourrai faire en sorte de sauter le prompt si la commande affiche qq chose)

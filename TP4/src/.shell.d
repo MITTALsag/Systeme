@@ -1,1 +1,1 @@
-shell.o: shell.c exec_shell.h
+shell.o: shell.c shell-utils.h shell-functionalities.h

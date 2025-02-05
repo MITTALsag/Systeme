@@ -8,7 +8,7 @@ PROGS=shell
 .PHONY: all
 all: $(PROGS)
 
-shell: shell.o shell-utils.o shell-functionalities.o exec_shell.o
+shell: shell.o shell-utils.o shell-functionalities.o signal-handlers.o
 
 %.o: %.c
 	$(CC) -MMD -MF .$*.d $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
